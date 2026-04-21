@@ -1,0 +1,73 @@
+import streamlit as st
+import requests
+from bs4 import BeautifulSoup
+from PIL import Image
+import io
+
+st.set_page_config(page_title="Amazon AI Tool", layout="wide")
+
+st.title("🛒 Amazon Product Finder Tool (Free AI Version)")
+
+# --- Image Upload ---
+uploaded_file = st.file_uploader("Upload Product Image", type=["png", "jpg", "jpeg"])
+
+# --- Simple Keyword Generator (basic AI logic) ---
+def generate_keywords(filename):
+    name = filename.lower()
+    words = name.replace(".jpg","").replace(".png","").replace("_"," ").split()
+    return " ".join(words[:5])
+
+# --- Amazon Scraper ---
+def get_amazon_results(query):
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+    url = f"https://www.amazon.com/s?k={query}"
+    response = requests.get(url, headers=headers)
+
+    soup = BeautifulSoup(response.content, "html.parser")
+    results = []
+
+    items = soup.select(".s-result-item")[:5]
+
+    for item in items:
+        title = item.select_one("h2 span")
+        price = item.select_one(".a-price-whole")
+        rating = item.select_one(".a-icon-alt")
+
+        if title:
+            results.append({
+                "title": title.text,
+                "price": price.text if price else "N/A",
+                "rating": rating.text if rating else "N/A"
+            })
+
+    return results
+
+# --- UI Logic ---
+if uploaded_file:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Product", use_column_width=True)
+
+    st.subheader("🔍 Generated Keywords")
+    keywords = generate_keywords(uploaded_file.name)
+    st.write(keywords)
+
+    st.subheader("🛒 Amazon Listings")
+    results = get_amazon_results(keywords)
+
+    if results:
+        for r in results:
+            st.write(f"**Title:** {r['title']}")
+            st.write(f"💲 Price: {r['price']}")
+            st.write(f"⭐ Rating: {r['rating']}")
+            st.write("---")
+    else:
+        st.warning("No results found")
+
+    # --- Trademark Check ---
+    st.subheader("⚖️ Trademark Check")
+    st.write("Click below to check trademark manually:")
+
+    trademark_url = f"https://www.uspto.gov/trademarks/search?search={keywords}"
+    st.markdown(f"[Check Trademark Here]({trademark_url})")
